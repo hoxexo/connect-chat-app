@@ -1,0 +1,166 @@
+// Your Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyC0ESCW4w9k_WOi5spBsIzpxKnrDO9f6Bo",
+    authDomain: "hoxiii.firebaseapp.com",
+    projectId: "hoxiii",
+    storageBucket: "hoxiii.firebasestorage.app",
+    messagingSenderId: "692386720672",
+    appId: "1:692386720672:android:dc08ab6898b6e5d26392c5"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Track online users
+let currentUser = null;
+let onlineUsers = new Set();
+
+// Check auth state
+auth.onAuthStateChanged(user => {
+    if (user) {
+        currentUser = user;
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('chat-container').style.display = 'flex';
+        
+        // Add user to online users
+        updateUserStatus(user.uid, true);
+        
+        // Load messages
+        loadMessages();
+        
+        // Listen for online users
+        listenOnlineUsers();
+    } else {
+        document.getElementById('login-container').style.display = 'flex';
+        document.getElementById('chat-container').style.display = 'none';
+    }
+});
+
+// Sign Up
+function signUp() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    auth.createUserWithEmailAndPassword(email, password)
+        .catch(error => alert(error.message));
+}
+
+// Sign In
+function signIn() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    auth.signInWithEmailAndPassword(email, password)
+        .catch(error => alert(error.message));
+}
+
+// Logout
+function logout() {
+    if (currentUser) {
+        updateUserStatus(currentUser.uid, false);
+    }
+    auth.signOut();
+}
+
+// Update user online status
+async function updateUserStatus(uid, isOnline) {
+    const userRef = db.collection('users').doc(uid);
+    
+    await userRef.set({
+        email: auth.currentUser?.email,
+        online: isOnline,
+        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+}
+
+// Listen for online users
+function listenOnlineUsers() {
+    db.collection('users')
+        .where('online', '==', true)
+        .onSnapshot(snapshot => {
+            onlineUsers.clear();
+            snapshot.forEach(doc => {
+                if (doc.id !== currentUser?.uid) {
+                    onlineUsers.add(doc.data().email);
+                }
+            });
+            updateUserList();
+        });
+}
+
+// Update user list UI
+function updateUserList() {
+    const userListDiv = document.getElementById('user-list');
+    if (onlineUsers.size === 0) {
+        userListDiv.innerHTML = '<span>No one else online</span>';
+    } else {
+        userListDiv.innerHTML = '<span>Online: </span>' + 
+            Array.from(onlineUsers).map(email => 
+                `<span>${email.split('@')[0]} 🔴</span>`
+            ).join('');
+    }
+}
+
+// Send message
+async function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+    
+    if (message && currentUser) {
+        await db.collection('messages').add({
+            text: message,
+            userId: currentUser.uid,
+            userEmail: currentUser.email,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        input.value = '';
+    }
+}
+
+// Load messages in real-time
+function loadMessages() {
+    const messagesDiv = document.getElementById('messages');
+    
+    db.collection('messages')
+        .orderBy('timestamp')
+        .onSnapshot(snapshot => {
+            messagesDiv.innerHTML = '';
+            snapshot.forEach(doc => {
+                const msg = doc.data();
+                const messageDiv = document.createElement('div');
+                
+                // Check if message is sent or received
+                messageDiv.className = msg.userId === currentUser?.uid ? 
+                    'message sent' : 'message received';
+                
+                // Format time
+                const time = msg.timestamp ? 
+                    new Date(msg.timestamp.toDate()).toLocaleTimeString() : 'Just now';
+                
+                messageDiv.innerHTML = `
+                    <strong>${msg.userEmail.split('@')[0]}:</strong> ${msg.text}
+                    <small>${time}</small>
+                `;
+                
+                messagesDiv.appendChild(messageDiv);
+            });
+            
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+}
+
+// Handle Enter key
+document.getElementById('message-input')?.addEventListener('keypress', e => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+// Clean up on window close
+window.addEventListener('beforeunload', () => {
+    if (currentUser) {
+        updateUserStatus(currentUser.uid, false);
+    }
+});
