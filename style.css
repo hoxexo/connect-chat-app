@@ -56,15 +56,21 @@ body {
     font-size: 16px;
     cursor: pointer;
     margin: 5px;
-    transition: transform 0.2s;
+    width: 100%;
+    transition: transform 0.2s, background 0.3s;
 }
 
 .btn:hover {
     transform: translateY(-2px);
+    background: #5a67d8;
 }
 
 .btn-secondary {
     background: #764ba2;
+}
+
+.btn-secondary:hover {
+    background: #6b3f9e;
 }
 
 .btn-logout {
@@ -74,6 +80,11 @@ body {
     padding: 8px 16px;
     border-radius: 8px;
     cursor: pointer;
+    transition: background 0.3s;
+}
+
+.btn-logout:hover {
+    background: #ff3333;
 }
 
 .chat-header {
@@ -91,6 +102,7 @@ body {
     border-bottom: 2px solid #e0e0e0;
     overflow-x: auto;
     white-space: nowrap;
+    min-height: 50px;
 }
 
 .user-list span {
@@ -101,6 +113,7 @@ body {
     border-radius: 20px;
     margin: 0 5px;
     font-size: 14px;
+    font-weight: 500;
 }
 
 .messages {
@@ -109,6 +122,7 @@ body {
     padding: 20px;
     display: flex;
     flex-direction: column;
+    background: #f5f5f5;
 }
 
 .message {
@@ -117,6 +131,18 @@ body {
     border-radius: 15px;
     margin: 5px 0;
     word-wrap: break-word;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .message.sent {
@@ -127,15 +153,16 @@ body {
 }
 
 .message.received {
-    background: #f0f0f0;
+    background: white;
     color: black;
     align-self: flex-start;
     border-bottom-left-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .message small {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
     opacity: 0.7;
     margin-top: 5px;
 }
@@ -150,22 +177,4 @@ body {
 
 .message-input {
     flex: 1;
-    padding: 12px;
-    border: 2px solid #e0e0e0;
-    border-radius: 25px;
-    font-size: 16px;
-}
-
-.send-btn {
-    background: #667eea;
-    color: white;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 25px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.send-btn:hover {
-    background: #5a67d8;
-}
+    padding: 12px 20px
