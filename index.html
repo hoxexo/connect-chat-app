@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect - Global Chat App</title>
+    <title>Connect - Real Time Chat</title>
     <style>
         * {
             margin: 0;
@@ -46,6 +46,7 @@
             border: 2px solid #e0e0e0;
             border-radius: 10px;
             font-size: 16px;
+            transition: border-color 0.3s;
         }
 
         .input-field:focus {
@@ -62,7 +63,11 @@
             font-size: 16px;
             cursor: pointer;
             margin: 5px;
-            width: 100%;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
         }
 
         .btn-secondary {
@@ -172,19 +177,26 @@
             background: #5a67d8;
         }
 
+        .welcome-text {
+            color: #667eea;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+
         .tab-buttons {
             display: flex;
+            justify-content: center;
             gap: 10px;
             margin: 20px 0;
         }
 
         .tab-btn {
-            flex: 1;
-            padding: 10px;
+            padding: 10px 20px;
             border: none;
             border-radius: 10px;
             cursor: pointer;
             font-size: 16px;
+            transition: all 0.3s;
         }
 
         .tab-btn.active {
@@ -194,16 +206,11 @@
 
         .tab-btn:not(.active) {
             background: #f0f0f0;
-        }
-
-        h2 {
             color: #333;
-            margin-bottom: 10px;
         }
 
-        p {
-            color: #666;
-            margin-bottom: 20px;
+        #signup-fields, #login-fields {
+            transition: all 0.3s;
         }
     </style>
     <!-- Firebase SDKs -->
@@ -212,10 +219,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-    <!-- Login Container -->
     <div id="login-container" class="container">
         <h2>🌍 Connect</h2>
-        <p>Chat with people far away in real-time!</p>
+        <p class="welcome-text">Chat with people far away</p>
         
         <div class="tab-buttons">
             <button class="tab-btn active" onclick="showSignUp()" id="signup-tab">Sign Up</button>
@@ -235,16 +241,13 @@
         </div>
     </div>
 
-    <!-- Chat Container -->
     <div id="chat-container" class="container" style="display: none;">
         <div class="chat-header">
             <h2>Global Chat 🌐</h2>
             <button onclick="logout()" class="btn-logout">Logout</button>
         </div>
         
-        <div id="user-list" class="user-list">
-            <span>Loading users...</span>
-        </div>
+        <div id="user-list" class="user-list"></div>
         
         <div id="messages" class="messages"></div>
         
@@ -255,7 +258,7 @@
     </div>
 
     <script>
-        // Your Firebase configuration
+        // Your Firebase configuration from google-services.json
         const firebaseConfig = {
             apiKey: "AIzaSyC0ESCW4w9k_WOi5spBsIzpxKnrDO9f6Bo",
             authDomain: "hoxiii.firebaseapp.com",
@@ -270,15 +273,15 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // Enable offline persistence
+        // Enable offline persistence (works great on low-end devices)
         db.enablePersistence()
-            .catch(err => console.log('Offline mode enabled'));
+            .catch(err => console.log('Persistence error:', err));
 
-        // Variables
+        // Track online users
         let currentUser = null;
         let onlineUsers = new Set();
 
-        // Tab functions
+        // Tab switching
         function showSignUp() {
             document.getElementById('signup-fields').style.display = 'block';
             document.getElementById('login-fields').style.display = 'none';
@@ -293,15 +296,20 @@
             document.getElementById('signin-tab').classList.add('active');
         }
 
-        // Auth state observer
+        // Check auth state
         auth.onAuthStateChanged(user => {
             if (user) {
                 currentUser = user;
                 document.getElementById('login-container').style.display = 'none';
                 document.getElementById('chat-container').style.display = 'flex';
                 
+                // Add user to online users
                 updateUserStatus(user.uid, true);
+                
+                // Load messages
                 loadMessages();
+                
+                // Listen for online users
                 listenOnlineUsers();
             } else {
                 document.getElementById('login-container').style.display = 'flex';
@@ -314,13 +322,8 @@
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
             
-            if (!email || !password) {
-                alert('Please fill in all fields');
-                return;
-            }
-            
             if (password.length < 6) {
-                alert('Password must be at least 6 characters');
+                alert('Password must be at least 6 characters long');
                 return;
             }
             
@@ -336,11 +339,6 @@
         function signIn() {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
-            
-            if (!email || !password) {
-                alert('Please fill in all fields');
-                return;
-            }
             
             auth.signInWithEmailAndPassword(email, password)
                 .then(() => {
@@ -358,17 +356,15 @@
             auth.signOut();
         }
 
-        // Update user status
+        // Update user online status
         async function updateUserStatus(uid, isOnline) {
-            try {
-                await db.collection('users').doc(uid).set({
-                    email: auth.currentUser?.email,
-                    online: isOnline,
-                    lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-            } catch (error) {
-                console.log('Status update error:', error);
-            }
+            const userRef = db.collection('users').doc(uid);
+            
+            await userRef.set({
+                email: auth.currentUser?.email,
+                online: isOnline,
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
         }
 
         // Listen for online users
@@ -382,17 +378,21 @@
                             onlineUsers.add(doc.data().email);
                         }
                     });
-                    
-                    const userListDiv = document.getElementById('user-list');
-                    if (onlineUsers.size === 0) {
-                        userListDiv.innerHTML = '<span>🔴 No one else online</span>';
-                    } else {
-                        userListDiv.innerHTML = '<span>🟢 Online: </span>' + 
-                            Array.from(onlineUsers).map(email => 
-                                `<span>${email.split('@')[0]}</span>`
-                            ).join('');
-                    }
+                    updateUserList();
                 });
+        }
+
+        // Update user list UI
+        function updateUserList() {
+            const userListDiv = document.getElementById('user-list');
+            if (onlineUsers.size === 0) {
+                userListDiv.innerHTML = '<span>No one else online</span>';
+            } else {
+                userListDiv.innerHTML = '<span>🟢 Online: </span>' + 
+                    Array.from(onlineUsers).map(email => 
+                        `<span>${email.split('@')[0]}</span>`
+                    ).join('');
+            }
         }
 
         // Send message
@@ -408,14 +408,16 @@
                         userEmail: currentUser.email,
                         timestamp: firebase.firestore.FieldValue.serverTimestamp()
                     });
+                    
                     input.value = '';
                 } catch (error) {
-                    alert('Failed to send message. Check your connection.');
+                    console.error('Error sending message:', error);
+                    alert('Message failed to send. Check your connection.');
                 }
             }
         }
 
-        // Load messages
+        // Load messages in real-time
         function loadMessages() {
             const messagesDiv = document.getElementById('messages');
             
@@ -428,16 +430,15 @@
                         const msg = doc.data();
                         const messageDiv = document.createElement('div');
                         
+                        // Check if message is sent or received
                         messageDiv.className = msg.userId === currentUser?.uid ? 
                             'message sent' : 'message received';
                         
+                        // Format time
                         let timeText = 'Just now';
                         if (msg.timestamp) {
                             const date = msg.timestamp.toDate();
-                            timeText = date.toLocaleTimeString([], { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                            });
+                            timeText = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         }
                         
                         messageDiv.innerHTML = `
@@ -448,17 +449,27 @@
                         messagesDiv.appendChild(messageDiv);
                     });
                     
+                    // Scroll to bottom
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }, error => {
+                    console.error('Error loading messages:', error);
                 });
         }
 
-        // Enter key to send
+        // Handle Enter key
         document.getElementById('message-input')?.addEventListener('keypress', e => {
             if (e.key === 'Enter') sendMessage();
         });
 
-        // Show sign up by default
+        // Clean up on window close
+        window.addEventListener('beforeunload', () => {
+            if (currentUser) {
+                updateUserStatus(currentUser.uid, false);
+            }
+        });
+
+        // Initialize
         showSignUp();
     </script>
 </body>
-</html>
+    </html>
